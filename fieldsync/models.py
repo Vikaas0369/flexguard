@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
 
 from fieldsync.database import Base
@@ -14,6 +14,16 @@ class Inspection(Base):
     inspector = Column(String, nullable=False)
 
     finding = Column(String, nullable=False)
+
+    notes = Column(
+        Text,
+        nullable=True
+    )
+
+    evidence_path = Column(
+        String,
+        nullable=True
+    )
 
     risk_level = Column(String, nullable=False)
 
