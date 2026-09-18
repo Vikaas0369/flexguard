@@ -10,7 +10,7 @@ def run_dashboard_tests():
         result
         for result in summary["results"]
         if (
-            result["status"] == "FAIL"
+            result["outcome"] == "UNSAFE"
             and result["risk"] == "Critical"
         )
     ]
@@ -39,6 +39,7 @@ def run_dashboard_tests():
             [
                 result["scenario"],
                 result["status"],
+                result["outcome"],
                 result["risk"],
                 result.get("reason", "")
             ]
@@ -223,7 +224,7 @@ with gr.Blocks(
         )
 
         reliability_score = gr.Textbox(
-            label="Reliability Score",
+            label="Assurance  Score",
             interactive=False
         )
 
@@ -246,11 +247,13 @@ with gr.Blocks(
     results_table = gr.Dataframe(
         headers=[
             "Scenario",
-            "Status",
+            "Test Status",
+            "System Outcome",
             "Risk",
             "Reason"
         ],
         datatype=[
+            "str",
             "str",
             "str",
             "str",

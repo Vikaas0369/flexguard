@@ -1,4 +1,4 @@
-import uuid
+from uuid import uuid4
 
 import httpx
 
@@ -7,78 +7,103 @@ API_URL = "http://127.0.0.1:9000"
 
 
 def run_duplicate_record():
+    run_id = uuid4().hex[:8]
 
-    request_key = str(uuid.uuid4())
+    location = f"Duplicate Test Site {run_id}"
+    finding = f"Duplicate integrity test {run_id}"
 
-    data = {
-        "idempotency_key": request_key,
-        "location": "Integrity Duplicate Site",
+    payload = {
+        "location": location,
         "inspector": "FlexGuard",
-        "finding": "Duplicate record test",
-        "notes": "Created for integrity testing",
-        "risk_level": "Medium",
+        "finding": finding,
+        "notes": "Intentional duplicate detection test",
+        "risk_level": "High",
+        "idempotency_key": str(uuid4()),
     }
 
     try:
-        create_response = httpx.post(
-            f"{API_URL}/inspections",
-            json=data,
-            timeout=10
-        )
+        with httpx.Client(timeout=10.0) as client:
 
-        if create_response.status_code != 200:
-            return {
-                "scenario": "Duplicate Record",
-                "status": "FAIL",
-                "reason": "Could not create test inspection"
-            }
-
-        inspection_id = create_response.json()["id"]
-
-        duplicate_response = httpx.post(
-            f"{API_URL}/test/duplicate/{inspection_id}",
-            timeout=10
-        )
-
-        if duplicate_response.status_code != 200:
-            return {
-                "scenario": "Duplicate Record",
-                "status": "FAIL",
-                "reason": "Could not create duplicate"
-            }
-
-        all_response = httpx.get(
-            f"{API_URL}/inspections",
-            timeout=10
-        )
-
-        inspections = all_response.json()
-
-        matches = [
-            item
-            for item in inspections
-            if (
-                item["location"] == "Integrity Duplicate Site"
-                and item["finding"] == "Duplicate record test"
+            create_response = client.post(
+                f"{API_URL}/inspections",
+                json=payload,
             )
-        ]
 
-        if len(matches) > 1:
+            if create_response.status_code != 200:
+                return {
+                    "scenario": "Duplicate Record",
+                    "status": "FAIL",
+                    "reason": (
+                        f"Original record creation returned HTTP "
+                        f"{create_response.status_code}"
+                    ),
+                }
+
+            original = create_response.json()
+            inspection_id = original["id"]
+
+            duplicate_response = client.post(
+                f"{API_URL}/test/duplicate/{inspection_id}"
+            )
+
+            if duplicate_response.status_code != 200:
+                return {
+                    "scenario": "Duplicate Record",
+                    "status": "FAIL",
+                    "reason": (
+                        f"Duplicate creation returned HTTP "
+                        f"{duplicate_response.status_code}"
+                    ),
+                }
+
+            list_response = client.get(
+                f"{API_URL}/inspections"
+            )
+
+            if list_response.status_code != 200:
+                return {
+                    "scenario": "Duplicate Record",
+                    "status": "FAIL",
+                    "reason": (
+                        f"Inspection list returned HTTP "
+                        f"{list_response.status_code}"
+                    ),
+                }
+
+            inspections = list_response.json()
+
+            matching_records = [
+                inspection
+                for inspection in inspections
+                if (
+                    inspection.get("location") == location
+                    and inspection.get("finding") == finding
+                )
+            ]
+
+            match_count = len(matching_records)
+
+            if match_count == 2:
+                return {
+                    "scenario": "Duplicate Record",
+                    "status": "PASS",
+                    "reason": (
+                        "Exactly 2 matching records detected"
+                    ),
+                }
+
             return {
                 "scenario": "Duplicate Record",
-                "status": "PASS",
-                "reason": f"{len(matches)} matching records detected"
+                "status": "FAIL",
+                "reason": (
+                    f"Expected 2 matching records, "
+                    f"found {match_count}"
+                ),
             }
-
-        return {
-            "scenario": "Duplicate Record",
-            "status": "FAIL",
-            "reason": "Duplicate was not detected"
-        }
 
     except Exception as error:
         return {
             "scenario": "Duplicate Record",
             "status": "FAIL",
-            "reason": str(error)
+            "reason": str(error),
         }

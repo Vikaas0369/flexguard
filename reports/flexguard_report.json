@@ -1,89 +1,195 @@
 {
-    "total_tests": 13,
-    "passed": 13,
+    "total_tests": 26,
+    "passed": 26,
     "failed": 0,
-    "reliability_score": 100.0,
+    "assurance_score": 100.0,
     "overall_risk": "Low",
-    "critical_failures": [],
+    "critical_unsafe_outcomes": [],
+    "release_decision": "RELEASE APPROVED",
     "results": [
         {
             "scenario": "Normal Request",
             "status": "PASS",
-            "inspection_id": 81,
-            "idempotency_key": "4c90da76-92fa-42bf-81d0-58ab4b4805d8",
-            "risk": "Critical"
+            "reason": "Inspection created and retrieved successfully",
+            "inspection_id": 186,
+            "risk": "Critical",
+            "outcome": "SAFE"
+        },
+        {
+            "scenario": "Normal Request",
+            "status": "PASS",
+            "reason": "Inspection created and retrieved successfully",
+            "inspection_id": 186,
+            "risk": "Critical",
+            "outcome": "SAFE"
         },
         {
             "scenario": "Timeout",
             "status": "PASS",
             "reason": "Timeout detected correctly",
-            "risk": "Medium"
+            "risk": "Medium",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Timeout",
+            "status": "PASS",
+            "reason": "Timeout detected correctly",
+            "risk": "Medium",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "HTTP 500",
             "status": "PASS",
             "reason": "Server error detected correctly",
-            "risk": "Medium"
+            "risk": "Medium",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "HTTP 500",
+            "status": "PASS",
+            "reason": "Server error detected correctly",
+            "risk": "Medium",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Slow Response",
             "status": "PASS",
-            "reason": "Response took 2.06 seconds",
-            "risk": "Low"
+            "reason": "Response took 2.03 seconds",
+            "risk": "Low",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Slow Response",
+            "status": "PASS",
+            "reason": "Response took 2.03 seconds",
+            "risk": "Low",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Connection Drop",
             "status": "PASS",
             "reason": "Connection failure detected correctly",
-            "risk": "High"
+            "risk": "High",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Connection Drop",
+            "status": "PASS",
+            "reason": "Connection failure detected correctly",
+            "risk": "High",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Duplicate Retry",
             "status": "PASS",
-            "reason": "Both requests returned inspection 82",
-            "risk": "High"
+            "reason": "Both requests returned inspection 187",
+            "risk": "High",
+            "outcome": "SAFE"
+        },
+        {
+            "scenario": "Duplicate Retry",
+            "status": "PASS",
+            "reason": "Both requests returned inspection 187",
+            "risk": "High",
+            "outcome": "SAFE"
         },
         {
             "scenario": "Interrupted Upload",
             "status": "PASS",
             "reason": "Upload interruption detected correctly",
-            "risk": "High"
+            "risk": "High",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Interrupted Upload",
+            "status": "PASS",
+            "reason": "Upload interruption detected correctly",
+            "risk": "High",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Missing Record",
             "status": "PASS",
             "reason": "Missing record detected correctly",
-            "risk": "Critical"
+            "risk": "Critical",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Missing Record",
+            "status": "PASS",
+            "reason": "Missing record detected correctly",
+            "risk": "Critical",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Duplicate Record",
             "status": "PASS",
-            "reason": "22 matching records detected",
-            "risk": "High"
+            "reason": "Exactly 2 matching records detected",
+            "risk": "High",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Duplicate Record",
+            "status": "PASS",
+            "reason": "Exactly 2 matching records detected",
+            "risk": "High",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Changed Data",
             "status": "PASS",
             "reason": "Expected High, found Low",
-            "risk": "Critical"
+            "risk": "Critical",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Changed Data",
+            "status": "PASS",
+            "reason": "Expected High, found Low",
+            "risk": "Critical",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Missing Attachment",
             "status": "PASS",
             "reason": "Missing attachment detected correctly",
-            "risk": "High"
+            "risk": "High",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Missing Attachment",
+            "status": "PASS",
+            "reason": "Missing attachment detected correctly",
+            "risk": "High",
+            "outcome": "DETECTED"
         },
         {
             "scenario": "Checksum Validation",
             "status": "PASS",
             "reason": "File checksum matches",
-            "risk": "Critical"
+            "risk": "Critical",
+            "outcome": "SAFE"
+        },
+        {
+            "scenario": "Checksum Validation",
+            "status": "PASS",
+            "reason": "File checksum matches",
+            "risk": "Critical",
+            "outcome": "SAFE"
         },
         {
             "scenario": "Failure Replay",
             "status": "PASS",
             "reason": "Retries and final state recorded",
-            "risk": "Low"
+            "risk": "Low",
+            "outcome": "DETECTED"
+        },
+        {
+            "scenario": "Failure Replay",
+            "status": "PASS",
+            "reason": "Retries and final state recorded",
+            "risk": "Low",
+            "outcome": "DETECTED"
         }
     ]
 }

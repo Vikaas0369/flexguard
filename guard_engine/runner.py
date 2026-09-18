@@ -2,6 +2,7 @@ from guard_engine.risk_engine import (
     calculate_reliability_score,
     get_overall_risk,
     get_risk_level,
+    get_system_outcome,
 )
 
 from guard_engine.scenarios.normal_request import (
@@ -77,7 +78,15 @@ def run_tests():
             result["scenario"]
         )
 
+        outcome = get_system_outcome(
+            result["scenario"],
+            result["status"],
+        )
+
         result["risk"] = risk
+
+        results.append(result)
+        result["outcome"] = outcome
 
         results.append(result)
 
@@ -91,6 +100,10 @@ def run_tests():
 
         print(
             f"Risk:     {risk}"
+        )
+
+        print(
+            f"Outcome:  {outcome}"
         )
 
         if "reason" in result:
@@ -139,7 +152,7 @@ def run_tests():
     )
 
     print(
-        f"Reliability Score:  {score}%"
+        f"Assurance Score:  {score}%"
     )
 
     print(

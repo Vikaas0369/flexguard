@@ -10,25 +10,32 @@ REPORT_DIR.mkdir(exist_ok=True)
 
 
 def run_ci():
-
     summary = run_tests()
 
-    critical_failures = [
+    critical_unsafe = [
         result
         for result in summary["results"]
         if (
-            result["status"] == "FAIL"
-            and result["risk"] == "Critical"
+            result.get("outcome") == "UNSAFE"
+            and result.get("risk") == "Critical"
         )
     ]
+
+    if critical_unsafe:
+        release_decision = "BLOCK RELEASE"
+    elif summary["score"] < 95:
+        release_decision = "REVIEW REQUIRED"
+    else:
+        release_decision = "RELEASE APPROVED"
 
     report = {
         "total_tests": summary["total"],
         "passed": summary["passed"],
         "failed": summary["failed"],
-        "reliability_score": summary["score"],
+        "assurance_score": summary["score"],
         "overall_risk": summary["overall_risk"],
-        "critical_failures": critical_failures,
+        "critical_unsafe_outcomes": critical_unsafe,
+        "release_decision": release_decision,
         "results": summary["results"],
     }
 
@@ -40,12 +47,12 @@ def run_ci():
     with open(
         report_path,
         "w",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as file:
         json.dump(
             report,
             file,
-            indent=4
+            indent=4,
         )
 
     print()
@@ -55,14 +62,19 @@ def run_ci():
         f"Report: {report_path}"
     )
     print(
-        f"Reliability: {summary['score']}%"
+        f"Assurance Score: "
+        f"{summary['score']}%"
     )
     print(
-        f"Critical Failures: "
-        f"{len(critical_failures)}"
+        f"Critical Unsafe Outcomes: "
+        f"{len(critical_unsafe)}"
+    )
+    print(
+        f"Release Decision: "
+        f"{release_decision}"
     )
 
-    if critical_failures:
+    if critical_unsafe:
         print()
         print("PIPELINE RESULT: FAIL")
         sys.exit(1)
