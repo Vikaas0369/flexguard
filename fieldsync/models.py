@@ -9,6 +9,13 @@ class Inspection(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    idempotency_key = Column(
+        String,
+        unique=True,
+        nullable=True,
+        index=True
+    )
+
     location = Column(String, nullable=False)
 
     inspector = Column(String, nullable=False)

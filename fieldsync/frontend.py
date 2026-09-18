@@ -1,9 +1,12 @@
 from pathlib import Path
 import mimetypes
-from fieldsync.offline_queue import add_to_queue
+from uuid import uuid4
 
 import gradio as gr
 import httpx
+
+from fieldsync.offline_queue import add_to_queue
+
 
 
 API_URL = "http://127.0.0.1:8000"
@@ -80,7 +83,10 @@ def create_inspection(
             "NOT READY"
         )
 
+    request_key = str(uuid4())
+
     data = {
+        "idempotency_key": request_key,
         "location": location,
         "inspector": inspector,
         "finding": finding,
@@ -173,7 +179,8 @@ def create_inspection(
             finding=finding,
             notes=notes,
             risk_level=risk_level,
-            evidence_path=evidence_file
+            evidence_path=evidence_file,
+            idempotency_key=request_key
         )
 
         return (

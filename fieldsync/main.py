@@ -3,6 +3,7 @@ from fastapi import ( Depends, FastAPI, File, HTTPException, UploadFile, )
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from pathlib import Path
+from uuid import uuid4
 
 from fieldsync import models
 from fieldsync.database import Base, SessionLocal, engine
@@ -30,6 +31,7 @@ class InspectionCreate(BaseModel):
     finding: str = Field(min_length=3, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
     risk_level: Literal["Low", "Medium", "High", "Critical"]
+    idempotency_key: str | None = None
 
 
 def get_db():
@@ -56,7 +58,25 @@ def create_inspection(
     inspection: InspectionCreate,
     db: Session = Depends(get_db)
 ):
+    request_key = (
+        inspection.idempotency_key
+        or str(uuid4())
+    )
+
+    existing_inspection = (
+        db.query(models.Inspection)
+        .filter(
+            models.Inspection.idempotency_key
+            == request_key
+        )
+        .first()
+    )
+
+    if existing_inspection:
+        return existing_inspection
+
     new_inspection = models.Inspection(
+        idempotency_key=request_key,
         location=inspection.location,
         inspector=inspection.inspector,
         finding=inspection.finding,

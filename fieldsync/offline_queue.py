@@ -1,6 +1,7 @@
 import mimetypes
 import sqlite3
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 
@@ -24,6 +25,7 @@ def create_queue_table():
         """
         CREATE TABLE IF NOT EXISTS offline_queue (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            idempotency_key TEXT NOT NULL UNIQUE,
             location TEXT NOT NULL,
             inspector TEXT NOT NULL,
             finding TEXT NOT NULL,
@@ -46,14 +48,21 @@ def add_to_queue(
     finding,
     notes,
     risk_level,
-    evidence_path=None
+    evidence_path=None,
+    idempotency_key=None
 ):
     connection = get_connection()
     cursor = connection.cursor()
 
+    request_key = (
+        idempotency_key
+        or str(uuid4())
+    )
+
     cursor.execute(
         """
         INSERT INTO offline_queue (
+            idempotency_key,
             location,
             inspector,
             finding,
@@ -63,9 +72,10 @@ def add_to_queue(
             status,
             retry_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            request_key,
             location,
             inspector,
             finding,
@@ -166,7 +176,6 @@ def record_failed_retry(queue_id):
 
 
 def sync_pending_inspections():
-
     pending = get_pending_inspections()
 
     if not pending:
@@ -176,14 +185,16 @@ def sync_pending_inspections():
     for inspection in pending:
 
         queue_id = inspection[0]
-        location = inspection[1]
-        inspector = inspection[2]
-        finding = inspection[3]
-        notes = inspection[4]
-        risk_level = inspection[5]
-        evidence_path = inspection[6]
+        idempotency_key = inspection[1]
+        location = inspection[2]
+        inspector = inspection[3]
+        finding = inspection[4]
+        notes = inspection[5]
+        risk_level = inspection[6]
+        evidence_path = inspection[7]
 
         data = {
+            "idempotency_key": idempotency_key,
             "location": location,
             "inspector": inspector,
             "finding": finding,
@@ -208,7 +219,6 @@ def sync_pending_inspections():
                 continue
 
             server_inspection = response.json()
-
             inspection_id = server_inspection["id"]
 
             if evidence_path:
