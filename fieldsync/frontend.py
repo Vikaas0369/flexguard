@@ -1,5 +1,6 @@
 from pathlib import Path
 import mimetypes
+from fieldsync.offline_queue import add_to_queue
 
 import gradio as gr
 import httpx
@@ -165,13 +166,31 @@ def create_inspection(
             "NOT READY"
         )
 
-    except Exception as error:
+    except Exception:
+        queue_id = add_to_queue(
+            location=location,
+            inspector=inspector,
+            finding=finding,
+            notes=notes,
+            risk_level=risk_level,
+            evidence_path=evidence_file
+        )
+
         return (
-            f"API CONNECTION FAILED\n\n{error}",
-            "Offline",
-            "-",
+            (
+                "SAVED LOCALLY\n\n"
+                f"Local Reference  LOCAL-{queue_id:04d}\n"
+                f"Location         {location}\n"
+                f"Inspector        {inspector}\n"
+                f"Risk             {risk_level}\n"
+                "Status           PENDING\n\n"
+                "Backend unavailable.\n"
+                "Inspection is waiting for synchronisation."
+            ),
+            "PENDING",
+            f"LOCAL-{queue_id:04d}",
             None,
-            "NOT READY"
+            "PENDING"
         )
 
 
