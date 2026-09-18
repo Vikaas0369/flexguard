@@ -46,6 +46,10 @@ from guard_engine.scenarios.checksum_validation import (
     run_checksum_validation,
 )
 
+from guard_engine.scenarios.failure_replay import (
+    run_failure_replay,
+)
+
 def print_result(result):
 
     print(f"Scenario: {result['scenario']}")
@@ -81,6 +85,7 @@ def run_tests():
         run_changed_data,
         run_missing_attachment,
         run_checksum_validation,
+        run_failure_replay,
     ]
 
     for test in tests:
