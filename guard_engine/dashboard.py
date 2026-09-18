@@ -173,10 +173,10 @@ custom_css = """
 """
 
 
+dashboard_theme = gr.themes.Base()
+
 with gr.Blocks(
-    title="FlexGuard Dashboard",
-    theme=gr.themes.Base(),
-    css=custom_css
+    title="FlexGuard Dashboard"
 ) as app:
 
     gr.HTML(
@@ -285,4 +285,7 @@ with gr.Blocks(
 
 
 if __name__ == "__main__":
-    app.launch()
+    app.launch(
+        theme=dashboard_theme,
+        css=custom_css
+    )
