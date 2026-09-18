@@ -148,6 +148,15 @@ def run_tests():
 
     print()
 
+    return {
+        "results": results,
+        "total": len(results),
+        "passed": passed,
+        "failed": failed,
+        "score": score,
+        "overall_risk": overall_risk,
+    }
+
 
 if __name__ == "__main__":
     run_tests()
