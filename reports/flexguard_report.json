@@ -1,0 +1,89 @@
+{
+    "total_tests": 13,
+    "passed": 13,
+    "failed": 0,
+    "reliability_score": 100.0,
+    "overall_risk": "Low",
+    "critical_failures": [],
+    "results": [
+        {
+            "scenario": "Normal Request",
+            "status": "PASS",
+            "inspection_id": 81,
+            "idempotency_key": "4c90da76-92fa-42bf-81d0-58ab4b4805d8",
+            "risk": "Critical"
+        },
+        {
+            "scenario": "Timeout",
+            "status": "PASS",
+            "reason": "Timeout detected correctly",
+            "risk": "Medium"
+        },
+        {
+            "scenario": "HTTP 500",
+            "status": "PASS",
+            "reason": "Server error detected correctly",
+            "risk": "Medium"
+        },
+        {
+            "scenario": "Slow Response",
+            "status": "PASS",
+            "reason": "Response took 2.06 seconds",
+            "risk": "Low"
+        },
+        {
+            "scenario": "Connection Drop",
+            "status": "PASS",
+            "reason": "Connection failure detected correctly",
+            "risk": "High"
+        },
+        {
+            "scenario": "Duplicate Retry",
+            "status": "PASS",
+            "reason": "Both requests returned inspection 82",
+            "risk": "High"
+        },
+        {
+            "scenario": "Interrupted Upload",
+            "status": "PASS",
+            "reason": "Upload interruption detected correctly",
+            "risk": "High"
+        },
+        {
+            "scenario": "Missing Record",
+            "status": "PASS",
+            "reason": "Missing record detected correctly",
+            "risk": "Critical"
+        },
+        {
+            "scenario": "Duplicate Record",
+            "status": "PASS",
+            "reason": "22 matching records detected",
+            "risk": "High"
+        },
+        {
+            "scenario": "Changed Data",
+            "status": "PASS",
+            "reason": "Expected High, found Low",
+            "risk": "Critical"
+        },
+        {
+            "scenario": "Missing Attachment",
+            "status": "PASS",
+            "reason": "Missing attachment detected correctly",
+            "risk": "High"
+        },
+        {
+            "scenario": "Checksum Validation",
+            "status": "PASS",
+            "reason": "File checksum matches",
+            "risk": "Critical"
+        },
+        {
+            "scenario": "Failure Replay",
+            "status": "PASS",
+            "reason": "Retries and final state recorded",
+            "risk": "Low"
+        }
+    ]
+}
