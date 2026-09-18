@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from pathlib import Path
 from uuid import uuid4
+import asyncio
 
 from fieldsync import models
 from fieldsync.database import Base, SessionLocal, engine
@@ -203,3 +204,26 @@ async def upload_evidence(
         "inspection_id": inspection.id,
         "evidence_path": inspection.evidence_path
     }
+
+@app.get("/test/delay/{seconds}")
+async def test_delay(seconds: int):
+    await asyncio.sleep(seconds)
+
+    return {
+        "message": "Delayed response completed",
+        "delay_seconds": seconds
+    }
+
+@app.get("/test/error")
+def test_error():
+    raise HTTPException(
+        status_code=500,
+        detail="Simulated server error"
+    )
+
+@app.post("/test/interrupted-upload")
+async def interrupted_upload():
+    raise HTTPException(
+        status_code=500,
+        detail="Simulated interrupted upload"
+    )
