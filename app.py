@@ -11,6 +11,22 @@ from guard_engine.dashboard import (
     dashboard_theme,
 )
 
+
+# Hugging Face ZeroGPU requires at least one
+# function registered with @spaces.GPU.
+# FlexGuard itself does not need GPU processing.
+
+try:
+    import spaces
+
+    @spaces.GPU(duration=1)
+    def _zerogpu_probe():
+        return None
+
+except ImportError:
+    pass
+
+
 def start_server(application, port):
     uvicorn.run(
         application,
