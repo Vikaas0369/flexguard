@@ -227,3 +227,84 @@ async def interrupted_upload():
         status_code=500,
         detail="Simulated interrupted upload"
     )
+
+@app.delete("/test/inspections/{inspection_id}")
+def delete_test_inspection(
+    inspection_id: int,
+    db: Session = Depends(get_db)
+):
+    inspection = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == inspection_id)
+        .first()
+    )
+
+    if inspection is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspection not found"
+        )
+
+    db.delete(inspection)
+    db.commit()
+
+    return {
+        "message": "Test inspection deleted"
+    }
+
+@app.post("/test/duplicate/{inspection_id}")
+def duplicate_test_inspection(
+    inspection_id: int,
+    db: Session = Depends(get_db)
+):
+    inspection = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == inspection_id)
+        .first()
+    )
+
+    if inspection is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspection not found"
+        )
+
+    duplicate = models.Inspection(
+        idempotency_key=str(uuid4()),
+        location=inspection.location,
+        inspector=inspection.inspector,
+        finding=inspection.finding,
+        notes=inspection.notes,
+        risk_level=inspection.risk_level,
+        status=inspection.status
+    )
+
+    db.add(duplicate)
+    db.commit()
+    db.refresh(duplicate)
+
+    return duplicate
+
+@app.patch("/test/change/{inspection_id}")
+def change_test_inspection(
+    inspection_id: int,
+    db: Session = Depends(get_db)
+):
+    inspection = (
+        db.query(models.Inspection)
+        .filter(models.Inspection.id == inspection_id)
+        .first()
+    )
+
+    if inspection is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspection not found"
+        )
+
+    inspection.risk_level = "Low"
+
+    db.commit()
+    db.refresh(inspection)
+
+    return inspection

@@ -26,6 +26,26 @@ from guard_engine.scenarios.interrupted_upload import (
     run_interrupted_upload,
 )
 
+from guard_engine.scenarios.missing_record import (
+    run_missing_record,
+)
+
+from guard_engine.scenarios.duplicate_record import (
+    run_duplicate_record,
+)
+
+from guard_engine.scenarios.changed_data import (
+    run_changed_data,
+)
+
+from guard_engine.scenarios.missing_attachment import (
+    run_missing_attachment,
+)
+
+from guard_engine.scenarios.checksum_validation import (
+    run_checksum_validation,
+)
+
 def print_result(result):
 
     print(f"Scenario: {result['scenario']}")
@@ -56,6 +76,11 @@ def run_tests():
         run_connection_drop,
         run_duplicate_retry,
         run_interrupted_upload,
+        run_missing_record,
+        run_duplicate_record,
+        run_changed_data,
+        run_missing_attachment,
+        run_checksum_validation,
     ]
 
     for test in tests:
