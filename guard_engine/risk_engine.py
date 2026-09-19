@@ -11,9 +11,9 @@ SCENARIO_RISK = {
     "Timeout": "Medium",
     "HTTP 500": "Medium",
     "Slow Response": "Low",
-    "Connection Drop": "High",
-    "Duplicate Retry": "High",
-    "Interrupted Upload": "High",
+    "Offline Recovery": "Critical",
+    "Lost Acknowledgement": "Critical",
+    "Evidence Upload Recovery": "Critical",
     "Missing Record": "Critical",
     "Duplicate Record": "High",
     "Changed Data": "Critical",
@@ -23,10 +23,29 @@ SCENARIO_RISK = {
 }
 
 
+SCENARIO_TYPE = {
+    "Normal Request": "RESILIENCE",
+    "Offline Recovery": "RESILIENCE",
+    "Lost Acknowledgement": "RESILIENCE",
+    "Evidence Upload Recovery": "RESILIENCE",
+
+    "Timeout": "DETECTOR",
+    "HTTP 500": "DETECTOR",
+    "Slow Response": "DETECTOR",
+    "Missing Record": "DETECTOR",
+    "Duplicate Record": "DETECTOR",
+    "Changed Data": "DETECTOR",
+    "Missing Attachment": "DETECTOR",
+    "Checksum Validation": "DETECTOR",
+    "Failure Replay": "DETECTOR",
+}
+
+
 SAFE_SCENARIOS = {
     "Normal Request",
-    "Duplicate Retry",
-    "Checksum Validation",
+    "Offline Recovery",
+    "Lost Acknowledgement",
+    "Evidence Upload Recovery",
 }
 
 
@@ -37,6 +56,13 @@ def get_risk_level(scenario_name):
     )
 
 
+def get_scenario_type(scenario_name):
+    return SCENARIO_TYPE.get(
+        scenario_name,
+        "DETECTOR",
+    )
+
+
 def get_system_outcome(
     scenario_name,
     test_status,
@@ -44,7 +70,11 @@ def get_system_outcome(
     if test_status != "PASS":
         return "UNSAFE"
 
-    if scenario_name in SAFE_SCENARIOS:
+    scenario_type = get_scenario_type(
+        scenario_name
+    )
+
+    if scenario_type == "RESILIENCE":
         return "SAFE"
 
     return "DETECTED"
@@ -63,7 +93,10 @@ def calculate_reliability_score(results):
 
         total_weight += weight
 
-        if result.get("outcome") == "UNSAFE":
+        if (
+            result.get("outcome")
+            == "UNSAFE"
+        ):
             unsafe_weight += weight
 
     if total_weight == 0:
@@ -95,20 +128,44 @@ def get_overall_risk(score):
 
     return "Critical"
 
-def get_release_decision(results, score):
-    critical_unsafe = [
+
+def get_resilience_results(results):
+    return [
         result
         for result in results
         if (
-            result.get("outcome") == "UNSAFE"
-            and result.get("risk") == "Critical"
+            get_scenario_type(
+                result["scenario"]
+            )
+            == "RESILIENCE"
         )
     ]
 
-    if critical_unsafe:
-        return "BLOCK RELEASE"
 
-    if score < 95:
+def get_release_decision(
+    results,
+    score=None,
+):
+    resilience_results = (
+        get_resilience_results(
+            results
+        )
+    )
+
+    if not resilience_results:
         return "REVIEW REQUIRED"
+
+    unsafe_resilience = [
+        result
+        for result
+        in resilience_results
+        if (
+            result.get("outcome")
+            != "SAFE"
+        )
+    ]
+
+    if unsafe_resilience:
+        return "BLOCK RELEASE"
 
     return "RELEASE APPROVED"

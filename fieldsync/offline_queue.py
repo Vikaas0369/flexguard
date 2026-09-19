@@ -8,7 +8,7 @@ import httpx
 
 QUEUE_DB = Path("offline_queue.db")
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = "http://127.0.0.1:9000"
 
 MAX_RETRIES = 3
 
@@ -49,7 +49,7 @@ def add_to_queue(
     notes,
     risk_level,
     evidence_path=None,
-    idempotency_key=None
+    idempotency_key=None,
 ):
     connection = get_connection()
     cursor = connection.cursor()
@@ -83,8 +83,8 @@ def add_to_queue(
             risk_level,
             evidence_path,
             "PENDING",
-            0
-        )
+            0,
+        ),
     )
 
     queue_id = cursor.lastrowid
@@ -114,6 +114,40 @@ def get_pending_inspections():
     return rows
 
 
+def get_queue_item(queue_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM offline_queue
+        WHERE id = ?
+        """,
+        (queue_id,),
+    )
+
+    row = cursor.fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row[0],
+        "idempotency_key": row[1],
+        "location": row[2],
+        "inspector": row[3],
+        "finding": row[4],
+        "notes": row[5],
+        "risk_level": row[6],
+        "evidence_path": row[7],
+        "status": row[8],
+        "retry_count": row[9],
+    }
+
+
 def mark_synced(queue_id):
     connection = get_connection()
     cursor = connection.cursor()
@@ -124,7 +158,7 @@ def mark_synced(queue_id):
         SET status = 'SYNCED'
         WHERE id = ?
         """,
-        (queue_id,)
+        (queue_id,),
     )
 
     connection.commit()
@@ -141,14 +175,14 @@ def record_failed_retry(queue_id):
         FROM offline_queue
         WHERE id = ?
         """,
-        (queue_id,)
+        (queue_id,),
     )
 
     row = cursor.fetchone()
 
     if row is None:
         connection.close()
-        return
+        return None
 
     new_retry_count = row[0] + 1
 
@@ -167,133 +201,267 @@ def record_failed_retry(queue_id):
         (
             new_retry_count,
             new_status,
-            queue_id
-        )
+            queue_id,
+        ),
     )
 
     connection.commit()
     connection.close()
+
+    return {
+        "retry_count": new_retry_count,
+        "status": new_status,
+    }
+
+
+def sync_queue_item(queue_id):
+    inspection = get_queue_item(
+        queue_id
+    )
+
+    if inspection is None:
+        return {
+            "queue_id": queue_id,
+            "status": "NOT_FOUND",
+            "message": "Queue item does not exist",
+        }
+
+    if inspection["status"] != "PENDING":
+        return {
+            "queue_id": queue_id,
+            "status": inspection["status"],
+            "message": (
+                "Queue item is not pending"
+            ),
+        }
+
+    data = {
+        "idempotency_key": (
+            inspection["idempotency_key"]
+        ),
+        "location": inspection["location"],
+        "inspector": inspection["inspector"],
+        "finding": inspection["finding"],
+        "notes": inspection["notes"],
+        "risk_level": inspection["risk_level"],
+    }
+
+    try:
+        response = httpx.post(
+            f"{API_URL}/inspections",
+            json=data,
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            retry = record_failed_retry(
+                queue_id
+            )
+
+            return {
+                "queue_id": queue_id,
+                "status": retry["status"],
+                "message": (
+                    "Inspection creation failed"
+                ),
+            }
+
+        server_inspection = response.json()
+
+        inspection_id = (
+            server_inspection["id"]
+        )
+
+        evidence_path = (
+            inspection["evidence_path"]
+        )
+
+        if evidence_path:
+            file_path = Path(
+                evidence_path
+            )
+
+            # Do not claim SYNCED if expected
+            # evidence has disappeared locally.
+            if not file_path.exists():
+                retry = record_failed_retry(
+                    queue_id
+                )
+
+                return {
+                    "queue_id": queue_id,
+                    "status": retry["status"],
+                    "message": (
+                        "Evidence file is missing"
+                    ),
+                    "inspection_id": (
+                        inspection_id
+                    ),
+                }
+
+            mime_type, _ = (
+                mimetypes.guess_type(
+                    file_path.name
+                )
+            )
+
+            if mime_type is None:
+                mime_type = (
+                    "application/octet-stream"
+                )
+
+            with open(
+                file_path,
+                "rb",
+            ) as image_file:
+                files = {
+                    "file": (
+                        file_path.name,
+                        image_file,
+                        mime_type,
+                    )
+                }
+
+                upload_response = httpx.post(
+                    (
+                        f"{API_URL}/inspections/"
+                        f"{inspection_id}/evidence"
+                    ),
+                    files=files,
+                    timeout=20,
+                )
+
+            if upload_response.status_code != 200:
+                retry = record_failed_retry(
+                    queue_id
+                )
+
+                return {
+                    "queue_id": queue_id,
+                    "status": retry["status"],
+                    "message": (
+                        "Evidence upload failed: "
+                        f"HTTP {upload_response.status_code} "
+                        f"{upload_response.text}"
+                    ),
+                    "inspection_id": inspection_id,
+                }
+
+        submit_response = httpx.post(
+            (
+                f"{API_URL}/inspections/"
+                f"{inspection_id}/submit"
+            ),
+            timeout=10,
+        )
+
+        if submit_response.status_code == 200:
+            mark_synced(
+                queue_id
+            )
+
+            return {
+                "queue_id": queue_id,
+                "status": "SYNCED",
+                "message": (
+                    "Inspection synchronized"
+                ),
+                "inspection_id": (
+                    inspection_id
+                ),
+            }
+
+        # Recovery case:
+        # the server may already have submitted
+        # the record even if the client previously
+        # failed before updating its local state.
+        check_response = httpx.get(
+            (
+                f"{API_URL}/inspections/"
+                f"{inspection_id}"
+            ),
+            timeout=10,
+        )
+
+        if check_response.status_code == 200:
+            server_record = (
+                check_response.json()
+            )
+
+            if (
+                server_record.get("status")
+                == "submitted"
+            ):
+                mark_synced(
+                    queue_id
+                )
+
+                return {
+                    "queue_id": queue_id,
+                    "status": "SYNCED",
+                    "message": (
+                        "Recovered existing "
+                        "submitted inspection"
+                    ),
+                    "inspection_id": (
+                        inspection_id
+                    ),
+                }
+
+        retry = record_failed_retry(
+            queue_id
+        )
+
+        return {
+            "queue_id": queue_id,
+            "status": retry["status"],
+            "message": (
+                "Inspection submission failed"
+            ),
+            "inspection_id": inspection_id,
+        }
+
+    except Exception as error:
+        retry = record_failed_retry(
+            queue_id
+        )
+
+        return {
+            "queue_id": queue_id,
+            "status": retry["status"],
+            "message": str(error),
+        }
 
 
 def sync_pending_inspections():
     pending = get_pending_inspections()
 
     if not pending:
-        print("No pending inspections.")
-        return
+        print(
+            "No pending inspections."
+        )
+        return []
+
+    results = []
 
     for inspection in pending:
-
         queue_id = inspection[0]
-        idempotency_key = inspection[1]
-        location = inspection[2]
-        inspector = inspection[3]
-        finding = inspection[4]
-        notes = inspection[5]
-        risk_level = inspection[6]
-        evidence_path = inspection[7]
 
-        data = {
-            "idempotency_key": idempotency_key,
-            "location": location,
-            "inspector": inspector,
-            "finding": finding,
-            "notes": notes,
-            "risk_level": risk_level,
-        }
+        result = sync_queue_item(
+            queue_id
+        )
 
-        try:
-            response = httpx.post(
-                f"{API_URL}/inspections",
-                json=data,
-                timeout=10
-            )
+        results.append(
+            result
+        )
 
-            if response.status_code != 200:
-                record_failed_retry(queue_id)
+        print(
+            f"Queue {queue_id}: "
+            f"{result['status']} - "
+            f"{result['message']}"
+        )
 
-                print(
-                    f"Queue {queue_id}: create failed"
-                )
-
-                continue
-
-            server_inspection = response.json()
-            inspection_id = server_inspection["id"]
-
-            if evidence_path:
-                file_path = Path(evidence_path)
-
-                if file_path.exists():
-
-                    mime_type, _ = mimetypes.guess_type(
-                        file_path.name
-                    )
-
-                    if mime_type is None:
-                        mime_type = "application/octet-stream"
-
-                    with open(
-                        file_path,
-                        "rb"
-                    ) as image_file:
-
-                        files = {
-                            "file": (
-                                file_path.name,
-                                image_file,
-                                mime_type
-                            )
-                        }
-
-                        upload_response = httpx.post(
-                            (
-                                f"{API_URL}/inspections/"
-                                f"{inspection_id}/evidence"
-                            ),
-                            files=files,
-                            timeout=20
-                        )
-
-                    if upload_response.status_code != 200:
-                        record_failed_retry(queue_id)
-
-                        print(
-                            f"Queue {queue_id}: "
-                            "evidence upload failed"
-                        )
-
-                        continue
-
-            submit_response = httpx.post(
-                (
-                    f"{API_URL}/inspections/"
-                    f"{inspection_id}/submit"
-                ),
-                timeout=10
-            )
-
-            if submit_response.status_code != 200:
-                record_failed_retry(queue_id)
-
-                print(
-                    f"Queue {queue_id}: submit failed"
-                )
-
-                continue
-
-            mark_synced(queue_id)
-
-            print(
-                f"Queue {queue_id}: SYNCED"
-            )
-
-        except Exception:
-            record_failed_retry(queue_id)
-
-            print(
-                f"Queue {queue_id}: retry failed"
-            )
+    return results
 
 
 create_queue_table()

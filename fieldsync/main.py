@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from uuid import uuid4
 import asyncio
+import hashlib
 
 from fieldsync import models
 from fieldsync.database import Base, SessionLocal, engine
@@ -203,6 +204,65 @@ async def upload_evidence(
         "message": "Evidence uploaded",
         "inspection_id": inspection.id,
         "evidence_path": inspection.evidence_path
+    }
+
+@app.get(
+    "/inspections/{inspection_id}/evidence/checksum"
+)
+def get_evidence_checksum(
+    inspection_id: int,
+    db: Session = Depends(get_db)
+):
+    inspection = (
+        db.query(models.Inspection)
+        .filter(
+            models.Inspection.id
+            == inspection_id
+        )
+        .first()
+    )
+
+    if inspection is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspection not found"
+        )
+
+    if not inspection.evidence_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Evidence not found"
+        )
+
+    file_path = Path(
+        inspection.evidence_path
+    )
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Evidence file missing"
+        )
+
+    sha256 = hashlib.sha256()
+
+    with open(
+        file_path,
+        "rb"
+    ) as evidence_file:
+        while True:
+            chunk = evidence_file.read(
+                8192
+            )
+
+            if not chunk:
+                break
+
+            sha256.update(chunk)
+
+    return {
+        "inspection_id": inspection_id,
+        "sha256": sha256.hexdigest()
     }
 
 @app.get("/test/delay/{seconds}")

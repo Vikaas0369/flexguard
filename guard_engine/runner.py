@@ -2,6 +2,7 @@ from guard_engine.risk_engine import (
     calculate_reliability_score,
     get_overall_risk,
     get_risk_level,
+    get_scenario_type,
     get_system_outcome,
 )
 
@@ -17,11 +18,11 @@ from guard_engine.scenarios.http_500 import (
 from guard_engine.scenarios.slow_response import (
     run_slow_response,
 )
-from guard_engine.scenarios.connection_drop import (
-    run_connection_drop,
+from guard_engine.scenarios.offline_recovery import (
+    run as run_offline_recovery,
 )
-from guard_engine.scenarios.duplicate_retry import (
-    run_duplicate_retry,
+from guard_engine.scenarios.lost_acknowledgement import (
+    run as run_lost_acknowledgement,
 )
 from guard_engine.scenarios.interrupted_upload import (
     run_interrupted_upload,
@@ -58,8 +59,8 @@ def run_tests():
         run_timeout_request,
         run_http_500,
         run_slow_response,
-        run_connection_drop,
-        run_duplicate_retry,
+        run_offline_recovery,
+        run_lost_acknowledgement,
         run_interrupted_upload,
         run_missing_record,
         run_duplicate_record,
@@ -78,12 +79,18 @@ def run_tests():
             result["scenario"]
         )
 
+        scenario_type = get_scenario_type(
+            result["scenario"]
+        )
+
+
         outcome = get_system_outcome(
             result["scenario"],
             result["status"],
         )
 
         result["risk"] = risk
+        result["type"] = scenario_type
         result["outcome"] = outcome
 
         results.append(result)
@@ -94,6 +101,10 @@ def run_tests():
 
         print(
             f"Status:   {result['status']}"
+        )
+
+        print(
+            f"Type:     {scenario_type}"
         )
 
         print(

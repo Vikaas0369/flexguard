@@ -22,7 +22,7 @@ def test_clean_results_approve_release():
 def test_critical_unsafe_blocks_release():
     results = [
         {
-            "scenario": "Changed Data",
+            "scenario": "Offline Recovery",
             "status": "FAIL",
             "outcome": "UNSAFE",
             "risk": "Critical",
