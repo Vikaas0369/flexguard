@@ -5,7 +5,11 @@ import webbrowser
 import uvicorn
 
 from fieldsync.main import app as fieldsync_api
-from fieldsync.frontend import app as fieldsync_ui
+from fieldsync.frontend import (
+    app as fieldsync_ui,
+    custom_css as fieldsync_css,
+    fieldsync_theme,
+)
 from guard_engine.chaos.proxy import app as proxy_api
 from guard_engine.dashboard import (
     app as flexguard_ui,
@@ -47,6 +51,8 @@ def start_fieldsync_ui():
         server_name="127.0.0.1",
         server_port=7861,
         prevent_thread_lock=True,
+        theme=fieldsync_theme,
+        css=fieldsync_css,
     )
 
 

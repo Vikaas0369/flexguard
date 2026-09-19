@@ -466,10 +466,10 @@ body {
 """
 
 
+fieldsync_theme = gr.themes.Base()
+
 with gr.Blocks(
-    title="FieldSync",
-    theme=gr.themes.Base(),
-    css=custom_css
+    title="FieldSync"
 ) as app:
 
     current_inspection_id = gr.State(
@@ -709,4 +709,7 @@ with gr.Blocks(
 
 
 if __name__ == "__main__":
-    app.launch()
+    app.launch(
+        theme=fieldsync_theme,
+        css=custom_css
+    )
