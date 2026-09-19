@@ -263,6 +263,26 @@ Reason
 
 ---
 
+## Screenshots
+
+### FieldSync
+
+FieldSync captures and submits field inspection records with evidence, risk classification, and synchronization status.
+
+![FieldSync inspection workflow](docs/screenshots/fieldsync.png)
+
+### FlexGuard Reliability Dashboard
+
+FlexGuard runs reliability and data-integrity scenarios and reports test status, system outcome, risk, assurance score, and release decision.
+
+![FlexGuard reliability dashboard](docs/screenshots/flexguard-dashboard.png)
+
+### CI/CD Release Validation
+
+GitHub Actions automatically runs the release-gate tests and FlexGuard reliability suite on pushes and pull requests.
+
+![FlexGuard GitHub Actions pipeline](docs/screenshots/github-actions.png)
+
 ## CI/CD
 
 FlexGuard uses GitHub Actions to run reliability checks automatically.
