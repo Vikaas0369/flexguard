@@ -1,83 +1,98 @@
 # FlexGuard
 
-FlexGuard is a risk-based reliability testing project for field applications that may operate under unstable connectivity and failure conditions.
+FlexGuard is an independent reliability-assurance prototype for offline field applications.
 
-The project contains two main parts:
+It combines a small reference field-inspection application with a failure-injection and validation framework that tests how important data behaves under unreliable connectivity, retries, server failures, and evidence-upload problems.
 
-- **FieldSync**, a small field inspection application used as the system under test
-- **FlexGuard**, a reliability assurance system that injects failures, checks data integrity, evaluates risk, and produces a release decision
+The project contains two main components:
 
-This is an independent portfolio project. It is not affiliated with FlexManager and does not test or access FlexManager software.
+- **FieldSync**, a reference field-inspection application used as the system under test
+- **FlexGuard**, a reliability-assurance framework that injects failures, validates recovery and data integrity, records test results, and produces a release decision
+
+> **Independent project:** FlexGuard is not affiliated with FlexManager. It does not access, test, reverse engineer, or make reliability claims about FlexManager software.
 
 ---
 
 ## Why FlexGuard
 
-Field applications can operate in environments where connectivity is slow, unstable, or temporarily unavailable.
+Field applications often operate outside reliable office networks.
 
-A successful request under normal conditions does not prove that an application will behave correctly when:
+A normal HTTP 200 response does not prove that an application will behave safely when:
 
-- a request times out
-- the server returns an HTTP 500 error
-- connectivity drops
-- the same request is retried
-- an upload is interrupted
-- records disappear
-- duplicate records are created
-- stored data changes unexpectedly
-- attachments are missing
-- uploaded files are corrupted
+- connectivity disappears
+- a server processes a request but the acknowledgement is lost
+- an offline record must synchronize later
+- an evidence upload fails
+- the client retries the same operation
+- records disappear or are duplicated
+- stored values change unexpectedly
+- attachments are missing or corrupted
+- the backend becomes slow or unavailable
 
-FlexGuard was built to simulate and detect these conditions automatically.
+FlexGuard was built to explore these failure modes systematically.
+
+The project focuses on a simple question:
+
+> **When something goes wrong between the field application and the server, does important inspection data remain recoverable, consistent, and safe?**
 
 ---
 
 ## Architecture
 
 ```text
-                     FIELD USER
-                         |
-                         v
-                +-------------------+
-                |   FieldSync UI    |
-                |      :7861        |
-                +---------+---------+
-                          |
-                          v
-                +-------------------+
-                |   FieldSync API   |
-                | FastAPI + SQLite  |
-                |      :8000        |
-                +---------^---------+
-                          |
-                          |
-                +---------+---------+
-                |   Chaos Proxy     |
-                |      :9000        |
-                +---------^---------+
-                          |
-                          |
-                +---------+---------+
-                |    FlexGuard      |
-                | Reliability Tests |
-                | Dashboard :7860   |
-                +---------+---------+
-                          |
-                          v
-                  Risk Assessment
-                          |
-                          v
-                  Release Decision
-                          |
-                          v
-                   GitHub Actions
+                       FIELD USER
+                           |
+                           v
+                 +-------------------+
+                 |   FieldSync UI    |
+                 |      :7861        |
+                 +---------+---------+
+                           |
+                           v
+                 +-------------------+
+                 |   Chaos Proxy     |
+                 |      :9000        |
+                 +---------+---------+
+                           |
+                           v
+                 +-------------------+
+                 |   FieldSync API   |
+                 | FastAPI + SQLite  |
+                 |      :8000        |
+                 +---------+---------+
+                           |
+                           v
+                     Server State
+
+
+                 FLEXGUARD ENGINE
+                           |
+              +------------+------------+
+              |                         |
+              v                         v
+      Scenario Controller        Integrity Checks
+              |                         |
+              +------------+------------+
+                           |
+                           v
+                   Risk / Outcomes
+                           |
+                           v
+                   Release Decision
+                           |
+                           v
+                    GitHub Actions
 ```
+
+FieldSync now sends its API traffic through the FlexGuard Chaos Proxy.
+
+This allows FlexGuard to change network behavior while the real reference application workflow continues to use the normal API endpoints.
 
 ---
 
 ## FieldSync
 
-FieldSync is the example field application used by FlexGuard.
+FieldSync is the purpose-built reference application used to demonstrate FlexGuard.
 
 It allows a user to:
 
@@ -86,11 +101,9 @@ It allows a user to:
 - record findings
 - add notes
 - assign a risk level
-- upload image evidence
+- attach image evidence
 - submit an inspection
 - view synchronization status
-
-FieldSync also includes offline and retry behavior to simulate a field application operating with unreliable connectivity.
 
 ### FieldSync capabilities
 
@@ -99,70 +112,237 @@ FieldSync also includes offline and retry behavior to simulate a field applicati
 | Inspection creation | Capture field inspection information |
 | Evidence upload | Attach image evidence |
 | Submission | Submit completed inspection records |
-| Offline queue | Store records when the backend is unavailable |
-| Retry | Retry pending records after connectivity returns |
-| Idempotency | Prevent duplicate records during repeated requests |
+| Offline queue | Preserve records when the backend path is unavailable |
+| Retry | Synchronize queued records after connectivity is restored |
+| Idempotency | Prevent duplicate business records during retries |
 | Sync status | Track pending, synced, and failed records |
 
+FieldSync uses a persistent local SQLite queue for offline records.
+
+A queued inspection retains the same idempotency key when retried so that uncertain network outcomes do not automatically create duplicate records.
+
 ---
 
-## FlexGuard Test Engine
+# FlexGuard Test Model
 
-FlexGuard currently runs 13 reliability and data-integrity scenarios.
+FlexGuard currently runs **13 checks**.
 
-| Scenario | Purpose |
+They are deliberately separated into two categories:
+
+```text
+4 Application Resilience Scenarios
++
+9 FlexGuard Detector Checks
+=
+13 Total Checks
+```
+
+This distinction is important.
+
+A detector passing means FlexGuard successfully detected an intentionally injected fault.
+
+A resilience scenario passing means the reference application actually preserved or recovered the business operation safely.
+
+---
+
+## Application Resilience
+
+These are the most important FlexGuard scenarios.
+
+They test real end-to-end behavior rather than simply confirming that an HTTP error can be detected.
+
+| Scenario | What FlexGuard proves |
 |---|---|
-| Normal Request | Verify normal create and retrieve behavior |
-| Timeout | Detect requests that exceed the allowed response time |
-| HTTP 500 | Detect server-side failures |
-| Slow Response | Detect degraded response performance |
-| Connection Drop | Detect unavailable network connections |
-| Duplicate Retry | Verify idempotent retry behavior |
-| Interrupted Upload | Detect interrupted evidence uploads |
-| Missing Record | Detect records that disappear after creation |
-| Duplicate Record | Detect duplicate stored records |
-| Changed Data | Detect unexpected changes to stored information |
-| Missing Attachment | Detect missing evidence files |
-| Checksum Validation | Verify uploaded file integrity |
-| Failure Replay | Record retry attempts and final failure state |
+| Normal Request | Inspection creation and retrieval work normally |
+| Offline Recovery | An inspection survives temporary connectivity failure, remains locally queued, later synchronizes, uploads evidence, submits successfully, and creates exactly one server record |
+| Lost Acknowledgement | The server commits an inspection, the success response is deliberately lost, the client retries the same operation, and idempotency prevents a duplicate |
+| Evidence Upload Recovery | An evidence upload fails, connectivity is restored, the evidence is retried, its checksum is verified, and the inspection is submitted successfully |
+
+### Offline Recovery
+
+FlexGuard validates this flow:
+
+```text
+Network/API path unavailable
+        |
+        v
+Inspection cannot reach server
+        |
+        v
+Saved to local queue
+Status = PENDING
+        |
+        v
+Connectivity restored
+        |
+        v
+Same queued operation retried
+        |
+        v
+Evidence uploaded
+        |
+        v
+Inspection submitted
+        |
+        v
+Local queue = SYNCED
+        |
+        v
+Exactly one server record exists
+```
+
+### Lost Acknowledgement
+
+This scenario reproduces an important distributed-systems uncertainty:
+
+```text
+Client sends create request
+        |
+        v
+Server commits inspection
+        |
+        v
+FlexGuard hides successful response
+        |
+        v
+Client cannot know whether request succeeded
+        |
+        v
+Same operation is retried
+        |
+        v
+Server recognizes idempotency key
+        |
+        v
+Existing inspection returned
+        |
+        v
+Exactly one business record exists
+```
+
+The scenario validates the **business outcome**, rather than assuming how a production platform must implement duplicate protection internally.
+
+### Evidence Upload Recovery
+
+FlexGuard also validates evidence recovery:
+
+```text
+Inspection created
+        |
+        v
+Evidence upload attempted
+        |
+        v
+Failure injected
+        |
+        v
+Evidence not falsely recorded as uploaded
+        |
+        v
+Connectivity restored
+        |
+        v
+Same evidence retried
+        |
+        v
+Server stores evidence
+        |
+        v
+SHA-256 checksum matches
+        |
+        v
+Inspection submitted
+```
 
 ---
 
-## Test Status and System Outcome
+## FlexGuard Detector Checks
 
-FlexGuard separates the status of the test from the condition found in the application.
+These checks verify that the FlexGuard harness can identify injected network and data-integrity conditions.
+
+| Detector Check | Purpose |
+|---|---|
+| Timeout | Detect a request exceeding its allowed response time |
+| HTTP 500 | Detect a server-side failure |
+| Slow Response | Detect degraded response performance |
+| Missing Record | Detect a deliberately removed inspection |
+| Duplicate Record | Detect duplicate stored records |
+| Changed Data | Detect unexpected changes to stored inspection data |
+| Missing Attachment | Detect missing evidence |
+| Checksum Validation | Validate evidence integrity using a file checksum |
+| Failure Replay | Record retry attempts and the final failure state |
+
+A detector result of `DETECTED` means the test harness correctly found the injected condition.
+
+It does **not** mean that FieldSync suffered an unresolved production failure.
+
+---
+
+## Test Status, Type, and Outcome
+
+FlexGuard keeps three concepts separate.
 
 ### Test Status
 
 **PASS**
 
-The FlexGuard check executed correctly and verified the expected condition.
+The FlexGuard check executed successfully and verified its expected condition.
 
 **FAIL**
 
-The FlexGuard check could not verify the expected behavior.
+The check could not verify the expected behavior.
+
+### Scenario Type
+
+**RESILIENCE**
+
+Tests whether FieldSync safely preserves or recovers the real business operation.
+
+**DETECTOR**
+
+Tests whether FlexGuard correctly identifies an injected fault or integrity problem.
 
 ### System Outcome
 
 **SAFE**
 
-The tested behavior completed without an integrity problem.
+A resilience scenario completed with the required integrity and recovery conditions satisfied.
 
 **DETECTED**
 
-FlexGuard successfully detected an intentionally injected failure condition.
+FlexGuard successfully identified an intentionally injected fault.
 
 **UNSAFE**
 
-A reliability or integrity check failed and requires attention.
+A required check failed.
 
-This distinction is important because an intentionally generated HTTP 500 can still result in a successful FlexGuard test when the failure is correctly detected.
+Example:
+
+```text
+Scenario: Offline Recovery
+Status:   PASS
+Type:     RESILIENCE
+Outcome:  SAFE
+Risk:     Critical
+```
+
+Compared with:
+
+```text
+Scenario: HTTP 500
+Status:   PASS
+Type:     DETECTOR
+Outcome:  DETECTED
+Risk:     Medium
+```
+
+That distinction prevents a detector self-test from being presented as proof that the application itself recovered.
 
 ---
 
 ## Risk Engine
 
-Each scenario is assigned a risk level:
+Each scenario has a risk classification:
 
 ```text
 Low
@@ -171,52 +351,70 @@ High
 Critical
 ```
 
-FlexGuard uses weighted risk values when calculating the final Assurance Score.
+FlexGuard also calculates a weighted **Test Assurance Score** across the checks.
 
-Example successful run:
+A successful current run looks like:
 
 ```text
-Total Tests:        13
-Passed:             13
-Failed:             0
-Assurance Score:    100.0%
-Overall Risk:       Low
+Total Checks:             13
+Application Resilience:   4 / 4 SAFE
+Detector Checks:          9 / 9 PASS
+Failed Checks:            0
+Test Assurance Score:     100.0%
+Overall Risk:             Low
 ```
+
+The percentage is a supporting test metric.
+
+It is **not** the primary release rule.
+
+Application resilience is evaluated separately.
 
 ---
 
 ## Release Decision
 
-FlexGuard converts test results into a release decision.
+The release decision is based on the real application-resilience scenarios.
 
 ```text
-Critical UNSAFE outcome
+Application Resilience
         |
         v
-   BLOCK RELEASE
-
-
-No critical unsafe outcome
-but Assurance Score < 95
+Are all required resilience scenarios SAFE?
         |
-        v
-   REVIEW REQUIRED
-
-
-No critical unsafe outcome
-and Assurance Score >= 95
-        |
-        v
-   RELEASE APPROVED
+      /   \
+    No     Yes
+    |       |
+    v       v
+ BLOCK    RELEASE
+RELEASE   APPROVED
 ```
 
-The release-gate logic is also validated with automated pytest tests.
+For the current prototype:
+
+```text
+Offline Recovery UNSAFE
+        ->
+BLOCK RELEASE
+
+Lost Acknowledgement UNSAFE
+        ->
+BLOCK RELEASE
+
+Evidence Upload Recovery UNSAFE
+        ->
+BLOCK RELEASE
+```
+
+Detector checks are handled separately.
+
+If a detector check fails, the CI pipeline also fails because the FlexGuard test harness itself cannot be considered healthy.
 
 ---
 
 ## Failure Replay
 
-FlexGuard records retry behavior so a failure can be understood after the test.
+FlexGuard records retry behavior so a failure sequence can be inspected after execution.
 
 Example:
 
@@ -234,31 +432,52 @@ Maximum retries reached
 Final state: FAILED
 ```
 
-This provides a simple sequence showing what happened before the final state was reached.
+This provides a simple reproducible timeline instead of only reporting:
+
+```text
+Test failed
+```
 
 ---
 
 ## Dashboard
 
-The FlexGuard dashboard displays:
+The dashboard intentionally separates application behavior from test-harness validation.
 
-- total tests
-- passed tests
-- failed tests
-- Assurance Score
-- overall risk
-- critical unsafe outcomes
-- scenario results
-- release decision
+### Application Resilience
 
-Each scenario displays:
+Displays the four real resilience scenarios:
 
 ```text
-Scenario
-Test Status
-System Outcome
-Risk
-Reason
+Normal Request
+Offline Recovery
+Lost Acknowledgement
+Evidence Upload Recovery
+```
+
+### FlexGuard Detector Checks
+
+Displays the nine fault and integrity detector checks separately.
+
+The dashboard summary includes:
+
+```text
+Total Checks
+Application Resilience
+Detector Checks
+Failed Checks
+Test Assurance Score
+Overall Risk
+Release Decision
+```
+
+A successful run currently reports:
+
+```text
+Application Resilience   4 / 4 SAFE
+Detector Checks          9 / 9 PASS
+Failed Checks            0
+Release Decision          RELEASE APPROVED
 ```
 
 ---
@@ -267,27 +486,29 @@ Reason
 
 ### FieldSync
 
-FieldSync captures and submits field inspection records with evidence, risk classification, and synchronization status.
+FieldSync captures field inspection data, evidence, risk classification, and synchronization state.
 
 ![FieldSync inspection workflow](docs/screenshots/fieldsync.png)
 
-### FlexGuard Reliability Dashboard
+### FlexGuard Dashboard
 
-FlexGuard runs reliability and data-integrity scenarios and reports test status, system outcome, risk, assurance score, and release decision.
+The FlexGuard dashboard separates application resilience from detector checks and produces a release decision.
 
 ![FlexGuard reliability dashboard](docs/screenshots/flexguard-dashboard.png)
 
-### CI/CD Release Validation
+### GitHub Actions
 
-GitHub Actions automatically runs the release-gate tests and FlexGuard reliability suite on pushes and pull requests.
+The same validation executes automatically in CI.
 
 ![FlexGuard GitHub Actions pipeline](docs/screenshots/github-actions.png)
 
-## CI/CD
+---
 
-FlexGuard uses GitHub Actions to run reliability checks automatically.
+# CI/CD
 
-The workflow runs on pushes and pull requests to the main branch.
+FlexGuard uses GitHub Actions to execute the reliability suite automatically.
+
+The workflow runs on pushes and pull requests to the `main` branch.
 
 ```text
 Checkout repository
@@ -296,7 +517,7 @@ Checkout repository
 Install dependencies
         |
         v
-Test release-gate logic
+Run release-gate unit tests
         |
         v
 Start FieldSync API
@@ -305,73 +526,94 @@ Start FieldSync API
 Start Chaos Proxy
         |
         v
-Run FlexGuard scenarios
+Run FlexGuard
         |
-        v
-Generate JSON report
-        |
-        v
-Critical UNSAFE outcome?
-      /     \
-    Yes      No
-     |        |
-     v        v
-   FAIL      PASS
+        +--------------------------+
+        |                          |
+        v                          v
+Application Resilience      Detector Checks
+        |                          |
+        +-------------+------------+
+                      |
+                      v
+             Generate JSON Report
+                      |
+                      v
+               Release Decision
+                      |
+                 +----+----+
+                 |         |
+                 v         v
+               PASS       FAIL
 ```
 
-The generated FlexGuard report is uploaded as a GitHub Actions artifact.
+A successful CI result looks like:
+
+```text
+FLEXGUARD CI REPORT
+========================
+Application Resilience: 4/4 SAFE
+Detector Checks: 9/9 PASS
+Test Assurance Score: 100.0%
+Overall Risk: Low
+Release Decision: RELEASE APPROVED
+
+PIPELINE RESULT: PASS
+```
+
+The generated JSON report is uploaded as a GitHub Actions artifact rather than stored permanently in the repository.
 
 ---
 
-## Running the Project
+# Running the Project
 
-### 1. Create a virtual environment
+## 1. Create a virtual environment
 
-Windows:
+Windows PowerShell:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-### 2. Install dependencies
+## 2. Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Start the complete environment
+## 3. Start the complete environment
 
 ```powershell
 python app.py
 ```
 
-One command starts the complete FlexGuard lab.
+One command starts the FlexGuard lab.
 
 ```text
+FieldSync UI
+http://127.0.0.1:7861
+
+FlexGuard Dashboard
+http://127.0.0.1:7860
+
+Chaos Proxy
+http://127.0.0.1:9000
+
 FieldSync API
 http://127.0.0.1:8000
 
 FastAPI Documentation
 http://127.0.0.1:8000/docs
-
-Chaos Proxy
-http://127.0.0.1:9000
-
-FlexGuard Dashboard
-http://127.0.0.1:7860
-
-FieldSync Application
-http://127.0.0.1:7861
 ```
 
-The FieldSync application and FlexGuard dashboard open automatically in separate browser tabs.
+The FieldSync and FlexGuard browser tabs open automatically.
 
 ---
 
-## Demo Flow
+# Demo Flow
 
-### 1. Create an inspection
+## 1. Create a normal inspection
 
 Open FieldSync and enter:
 
@@ -386,17 +628,27 @@ Evidence
 
 Create and submit the inspection.
 
-### 2. Show the FieldSync API
-
-Open:
+The successful state should show:
 
 ```text
-http://127.0.0.1:8000/docs
+Status: SUBMITTED
+Sync:   SYNCED
 ```
 
-This shows the FastAPI endpoints supporting the application.
+## 2. Explain the engineering problem
 
-### 3. Run FlexGuard
+A normal submission is not the difficult case.
+
+The important question is what happens when:
+
+```text
+connectivity disappears
+a response is lost
+an upload fails
+a retry occurs
+```
+
+## 3. Run FlexGuard
 
 Switch to the FlexGuard dashboard and click:
 
@@ -404,46 +656,56 @@ Switch to the FlexGuard dashboard and click:
 RUN FLEXGUARD TEST SUITE
 ```
 
-FlexGuard executes the reliability and data-integrity scenarios.
+## 4. Show Application Resilience
 
-### 4. Review the results
-
-The dashboard shows:
+Highlight:
 
 ```text
-Test Status
-System Outcome
-Risk
-Reason
-Assurance Score
-Overall Risk
-Critical Unsafe Outcomes
-Release Decision
+Offline Recovery
+Lost Acknowledgement
+Evidence Upload Recovery
 ```
 
-### 5. Show CI/CD
+These demonstrate real recovery behavior.
 
-Open the GitHub Actions workflow and show that the same release checks execute automatically during CI.
+## 5. Show Detector Checks
+
+Explain that FlexGuard also verifies that intentionally injected faults and data-integrity problems are detected correctly.
+
+## 6. Show the release decision
+
+A successful run should display:
+
+```text
+Application Resilience   4 / 4 SAFE
+Detector Checks          9 / 9 PASS
+Release Decision         RELEASE APPROVED
+```
+
+## 7. Show GitHub Actions
+
+Open the latest workflow run and show that the same suite executes automatically in CI.
 
 ---
 
-## Technology Stack
+# Technology Stack
 
 | Area | Technology |
 |---|---|
 | Language | Python |
 | Backend API | FastAPI |
 | User Interface | Gradio |
-| Database | SQLite |
+| Local / Server Storage | SQLite |
 | ORM | SQLAlchemy |
-| HTTP testing | HTTPX |
-| Automated tests | Pytest |
+| HTTP Client / Testing | HTTPX |
+| Automated Tests | Pytest |
+| Failure Injection | Custom FastAPI Chaos Proxy |
 | CI/CD | GitHub Actions |
-| Source control | Git and GitHub |
+| Source Control | Git and GitHub |
 
 ---
 
-## Project Structure
+# Project Structure
 
 ```text
 FlexGuard/
@@ -451,7 +713,6 @@ FlexGuard/
 |-- app.py
 |
 |-- fieldsync/
-|   |-- __init__.py
 |   |-- main.py
 |   |-- database.py
 |   |-- models.py
@@ -459,7 +720,6 @@ FlexGuard/
 |   `-- offline_queue.py
 |
 |-- guard_engine/
-|   |-- __init__.py
 |   |-- runner.py
 |   |-- replay.py
 |   |-- risk_engine.py
@@ -467,17 +727,16 @@ FlexGuard/
 |   |-- ci_runner.py
 |   |
 |   |-- chaos/
-|   |   |-- __init__.py
 |   |   `-- proxy.py
 |   |
 |   `-- scenarios/
 |       |-- normal_request.py
+|       |-- offline_recovery.py
+|       |-- lost_acknowledgement.py
+|       |-- interrupted_upload.py
 |       |-- timeout_request.py
 |       |-- http_500.py
 |       |-- slow_response.py
-|       |-- connection_drop.py
-|       |-- duplicate_retry.py
-|       |-- interrupted_upload.py
 |       |-- missing_record.py
 |       |-- duplicate_record.py
 |       |-- changed_data.py
@@ -488,6 +747,9 @@ FlexGuard/
 |-- tests/
 |   `-- test_release_gate.py
 |
+|-- docs/
+|   `-- screenshots/
+|
 |-- reports/
 |-- uploads/
 |
@@ -497,46 +759,73 @@ FlexGuard/
 `-- README.md
 ```
 
+`interrupted_upload.py` retains its historical filename, but the active scenario implemented inside it is **Evidence Upload Recovery**.
+
 ---
 
-## Engineering Concepts Demonstrated
+# Engineering Concepts Demonstrated
 
-FlexGuard was built to demonstrate practical experience with:
+FlexGuard demonstrates practical work with:
 
 - API development
-- automated testing
+- offline-first workflow design
+- persistent retry queues
 - failure injection
-- network fault simulation
-- offline workflows
-- retry handling
-- idempotency
-- data-integrity validation
-- checksum verification
+- chaos testing
+- unreliable-network simulation
+- idempotent request handling
+- lost-acknowledgement recovery
+- duplicate prevention
+- evidence recovery
+- SHA-256 integrity verification
+- local/server state validation
+- automated testing
 - failure replay
-- risk-based testing
-- automated release decisions
+- risk classification
+- release assurance
 - CI/CD release gates
 - GitHub Actions
-- application observability and debugging
+- reproducible defect scenarios
+- distributed-systems failure reasoning
 
 ---
 
-## Scope and Limitations
+# Scope and Limitations
 
-FlexGuard is a portfolio reliability-engineering project.
+FlexGuard is a portfolio reliability-engineering prototype.
 
-FieldSync is a purpose-built demonstration application created specifically as the system under test.
+FieldSync is a purpose-built reference application created specifically as the system under test.
 
-The project does not integrate with, reverse engineer, test, or make claims about the reliability of FlexManager or any other commercial field-management platform.
+The project does **not**:
 
-The current chaos environment is designed for demonstration and engineering validation rather than production-scale distributed load testing.
+- integrate with FlexManager
+- test FlexManager systems
+- reverse engineer FlexManager
+- claim that FlexManager has any of the simulated defects
+- attempt to reproduce FlexManager's internal implementation
+
+The simulated scenarios represent general engineering risks that can occur in offline and distributed field applications.
+
+The Chaos Proxy and reference application are designed for demonstration and engineering validation, not production-scale network emulation or load testing.
 
 ---
 
-## Author
+# Motivation
+
+FlexGuard was created after studying the engineering challenges involved in offline field applications.
+
+The project explores how failure injection, recovery validation, data-integrity checks, and CI release gates can be combined to test difficult field-workflow conditions before software is released.
+
+The objective is not to reproduce a commercial platform.
+
+The objective is to demonstrate a practical reliability-engineering approach to a difficult class of software problems.
+
+---
+
+# Author
 
 **Vikas Y**
 
-Software and DevOps Engineer
+Software & DevOps Engineer
 
 GitHub: **Vikaas0369**
