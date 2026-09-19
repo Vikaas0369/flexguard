@@ -84,8 +84,6 @@ def run_tests():
         )
 
         result["risk"] = risk
-
-        results.append(result)
         result["outcome"] = outcome
 
         results.append(result)

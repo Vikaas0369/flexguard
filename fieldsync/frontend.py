@@ -225,23 +225,23 @@ def submit_inspection(inspection_id):
                     "INSPECTION SUBMITTED\n\n"
                     f"Reference      INS-{inspection_id:04d}\n"
                     "Status         SUBMITTED\n"
-                    "Sync           PENDING SYNC"
+                    "Sync           SYNCED"
                 ),
                 "SUBMITTED",
-                "PENDING SYNC"
+                "SYNCED"
             )
 
         return (
             f"SUBMISSION FAILED\n\n{response.text}",
-            "Failed",
-            "NOT READY"
+            "FAILED",
+            "FAILED"
         )
 
     except Exception as error:
         return (
             f"API CONNECTION FAILED\n\n{error}",
-            "Offline",
-            "NOT READY"
+            "OFFLINE",
+            "PENDING SYNC"
         )
 
 
